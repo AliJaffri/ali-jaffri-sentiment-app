@@ -51,7 +51,10 @@ if st.button("Analyze") and ticker:
     with st.spinner("Fetching and analyzing data..."):
         news_df = get_news(ticker)
 
-        # Check if news is empty or missing required columns
+        st.write("Raw news preview:")
+        st.write(news_df.head())  # 🔍 Show data returned
+        st.write("Columns:", news_df.columns.tolist())  # 🔍 Show columns
+
         if news_df.empty or 'title' not in news_df.columns:
             st.error("❌ No news found or invalid data for this ticker. Try a popular one like AAPL or TSLA.")
             st.stop()
