@@ -50,8 +50,14 @@ ticker = st.text_input("Enter stock ticker (e.g. AAPL, TSLA):").upper()
 if st.button("Analyze") and ticker:
     with st.spinner("Fetching and analyzing data..."):
         news_df = get_news(ticker)
+
+        # Check if news is empty or missing required columns
+        if news_df.empty or 'title' not in news_df.columns:
+            st.error("❌ No news found or invalid data for this ticker. Try a popular one like AAPL or TSLA.")
+            st.stop()
+
         scored_news_df = score_news(news_df)
-        scored_news_df = convert_headline_to_link(scored_news_df)
+
 
         earliest_datetime = get_earliest_date(news_df)
         price_history_df = get_price_history(ticker, earliest_datetime)
