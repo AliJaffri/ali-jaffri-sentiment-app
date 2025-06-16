@@ -1,58 +1,40 @@
 from datetime import datetime
 import pandas as pd
-import requests
-from config import config
-import pandas as pd
 import pytz
+import feedparser
 
-date_format = "%b-%d-%y %H:%M %S"
 EST = pytz.timezone('US/Eastern')
-class API():
-    def __init__(self) -> None:
-        pass
 
-    def get_news(ticker):
-        date_format = "%b-%d-%y %H:%M %S"
+def get_news(ticker: str) -> pd.DataFrame:
+    rss_url = f'https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}'
+    feed = feedparser.parse(rss_url)
 
-        querystring = {"symbol": f"{ticker}"}
+    data_array = []
 
-        response = requests.get(
-            url=config.NEWS_API_URL, headers=config.headers, params=querystring)
+    for entry in feed.entries:
+        try:
+            title = entry.title
+            link = entry.link
+            pub_date = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
 
-        respose_json = response.json()
-        # print(respose_json)
-        data_array = []
+            # Build one row
+            data_array.append([
+                pub_date.astimezone(EST),
+                title,
+                entry.get('summary', ''),
+                f'<a href="{link}" target="_blank">{title}</a>'
+            ])
+        except Exception as e:
+            print(f"Error parsing entry: {e}")
+            continue
 
-        if 'body' in respose_json:
-            articles = respose_json['body']
-            for article in articles:
-                # Mon, 05 Jun 2023 20:46:19 +0000
-                utc_datetime = datetime.strptime(
-                    article['pubDate'], '%a, %d %b %Y %H:%M:%S %z')
+    if not data_array:
+        return pd.DataFrame()
 
-                title_i = article['title']
-                description_i = article['description']
-                link_i = article['link']
-                # Set column names
-                if ticker in title_i or ticker in description_i:
-                    data_array.append(
-                        [utc_datetime, title_i, description_i, f'<a href="{link_i}">{title_i}</a>'])
-
-            # Set column names
-            columns = ['Date Time', 'title',
-                       'Description', 'title + link']
-
-            df = pd.DataFrame(data_array, columns=columns)
-            df['Date Time'] = pd.to_datetime(
-                df['Date Time'], format=date_format, utc=True)
-            df.set_index('Date Time', inplace=True)
-            df.sort_values(by='Date Time', ascending=False)
-            df.reset_index(inplace=True)
-        else:
-            print(f'No data returned for ticker: {ticker}, response: {respose_json}')
-            df = pd.DataFrame()
-
-        return df
+    df = pd.DataFrame(data_array, columns=['Date Time', 'title', 'Description', 'title + link'])
+    df.sort_values(by='Date Time', ascending=False, inplace=True)
+    df.reset_index(drop=True, inplace=True)
+    return df
 
     def get_price_history(ticker: str, earliest_datetime: pd.Timestamp) -> pd.DataFrame:
 
