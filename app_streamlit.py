@@ -2,22 +2,14 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import pytz
-import json
 from plotly.utils import PlotlyJSONEncoder
 
 from sentiment.FinbertSentiment import FinbertSentiment
-from yahoo_api import API
+from yahoo_api import get_news, get_price_history  # ✅ Correctly imported as functions
 
 EST = pytz.timezone('US/Eastern')
 
 sentimentAlgo = FinbertSentiment()
-
-def get_price_history(ticker: str, earliest_datetime: pd.Timestamp) -> pd.DataFrame:
-    return API.get_price_history(ticker, earliest_datetime)
-
-def get_news(ticker) -> pd.DataFrame:
-    sentimentAlgo.set_symbol(ticker)
-    return API.get_news(ticker)
 
 def score_news(news_df: pd.DataFrame) -> pd.DataFrame:
     sentimentAlgo.set_data(news_df)
@@ -36,7 +28,7 @@ def plot_hourly_price(df, ticker):
     return px.line(data_frame=df, x='Date Time', y="Price", title=f"{ticker} Price")
 
 def convert_headline_to_link(df: pd.DataFrame) -> pd.DataFrame:
-    df['Headline'] = df['title + link'].apply(lambda x: f'<a href="{x[1]}" target="_blank">{x[0]}</a>')
+    df['Headline'] = df['title + link'].apply(lambda x: f'<a href="{x[1]}" target="_blank">{x[0]}</a>' if isinstance(x, (list, tuple)) and len(x) == 2 else x)
     df.drop(columns=['sentiment', 'title + link', 'title'], inplace=True, axis=1)
     return df
 
@@ -60,7 +52,7 @@ if st.button("Analyze") and ticker:
             st.stop()
 
         scored_news_df = score_news(news_df)
-
+        scored_news_df = convert_headline_to_link(scored_news_df)
 
         earliest_datetime = get_earliest_date(news_df)
         price_history_df = get_price_history(ticker, earliest_datetime)
