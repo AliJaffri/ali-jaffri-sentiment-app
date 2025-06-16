@@ -1,6 +1,7 @@
 from transformers import pipeline
 from .SentimentAnalysisBase import SentimentAnalysisBase
 import torch
+import pandas as pd
 
 class FinbertSentiment(SentimentAnalysisBase):
 
@@ -16,7 +17,18 @@ class FinbertSentiment(SentimentAnalysisBase):
         super().__init__()
 
     def calc_sentiment_score(self):
+        def extract_probs(result):
+            # Convert [{'label': 'neutral', 'score': 0.8}] to separate values
+            scores = {'positive': 0.0, 'negative': 0.0, 'neutral': 0.0}
+            for r in result:
+                scores[r['label']] = r['score']
+            return pd.Series([scores['positive'], scores['neutral'], scores['negative']])
+
+        # Run FinBERT on titles
         self.df['sentiment'] = self.df['title'].apply(self._sentiment_analysis)
-        self.df['sentiment_score'] = self.df['sentiment'].apply(
-            lambda x: {x[0]['label'] == 'negative': -1, x[0]['label'] == 'positive': 1}.get(True, 0) * x[0]['score']
-        )
+
+        # Extract detailed probabilities
+        self.df[['score_positive', 'score_neutral', 'score_negative']] = self.df['sentiment'].apply(extract_probs)
+
+        # Compute overall net sentiment score (positive - negative)
+        self.df['sentiment_score'] = self.df['score_positive'] - self.df['score_negative']
