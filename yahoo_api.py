@@ -56,7 +56,7 @@ def get_price_history(ticker: str, earliest_datetime: pd.Timestamp) -> pd.DataFr
 
     if 'body' not in respose_json:
         print(f"No price data for {ticker}")
-        return pd.DataFrame()
+        return pd.DataFrame(columns=['Date Time', 'Price'])
 
     price_history = respose_json['body']
     data_dict = []
@@ -64,19 +64,17 @@ def get_price_history(ticker: str, earliest_datetime: pd.Timestamp) -> pd.DataFr
     for stock_price in price_history.values():
         date_time_num = stock_price["date_utc"]
         utc_datetime = datetime.fromtimestamp(date_time_num, tz=pytz.utc)
-        est_datetime = utc_datetime.astimezone(tz=EST)
+        est_datetime = utc_datetime.astimezone(EST)
 
         if est_datetime < earliest_datetime:
             continue
 
         price = stock_price["open"]
-        data_dict.append([est_datetime.strftime(date_format), price])
+        data_dict.append([est_datetime, price])  # ✅ Keep datetime object here
 
-    columns = ['Date Time', 'Price']
-    df = pd.DataFrame(data_dict, columns=columns)
-    df['Date Time'] = pd.to_datetime(df['Date Time'], format=date_format)
+    df = pd.DataFrame(data_dict, columns=['Date Time', 'Price'])
+
     df.sort_values(by='Date Time', ascending=True, inplace=True)
     df.reset_index(drop=True, inplace=True)
 
     return df
-
