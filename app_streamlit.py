@@ -18,11 +18,9 @@ def score_news(news_df: pd.DataFrame) -> pd.DataFrame:
 
 def plot_sentiment(df: pd.DataFrame):
     return sentimentAlgo.plot_sentiment()
-
+    
 def get_earliest_date(df: pd.DataFrame) -> pd.Timestamp:
-    date = df['Date Time'].iloc[-1]
-    py_date = date.to_pydatetime()
-    return EST.localize(py_date)
+    return df['Date Time'].iloc[-1]  # Already timezone-aware
 
 def plot_hourly_price(df, ticker):
     return px.line(data_frame=df, x='Date Time', y="Price", title=f"{ticker} Price")
