@@ -2,9 +2,15 @@ from datetime import datetime
 import pandas as pd
 import pytz
 import feedparser
+import requests
+from config import config
 
 EST = pytz.timezone('US/Eastern')
+date_format = "%b-%d-%y %H:%M %S"
 
+# -------------------------------
+# ✅ Get News using Yahoo Finance RSS
+# -------------------------------
 def get_news(ticker: str) -> pd.DataFrame:
     rss_url = f'https://feeds.finance.yahoo.com/rss/2.0/headline?s={ticker}'
     feed = feedparser.parse(rss_url)
@@ -17,7 +23,6 @@ def get_news(ticker: str) -> pd.DataFrame:
             link = entry.link
             pub_date = datetime.strptime(entry.published, '%a, %d %b %Y %H:%M:%S %z')
 
-            # Build one row
             data_array.append([
                 pub_date.astimezone(EST),
                 title,
@@ -36,37 +41,42 @@ def get_news(ticker: str) -> pd.DataFrame:
     df.reset_index(drop=True, inplace=True)
     return df
 
-    def get_price_history(ticker: str, earliest_datetime: pd.Timestamp) -> pd.DataFrame:
+# -------------------------------
+# ✅ Get Price History (your existing API logic)
+# -------------------------------
+def get_price_history(ticker: str, earliest_datetime: pd.Timestamp) -> pd.DataFrame:
+    querystring = {
+        "symbol": ticker,
+        "interval": "5m",
+        "diffandsplits": "false"
+    }
 
-        querystring = {"symbol": {ticker},
-                    "interval": "5m", "diffandsplits": "false"}
-        
-        response = requests.get(url=config.HISTORY_API_URL, headers=config.headers, params=querystring)
+    response = requests.get(url=config.HISTORY_API_URL, headers=config.headers, params=querystring)
+    respose_json = response.json()
 
-        respose_json = response.json()
+    if 'body' not in respose_json:
+        print(f"No price data for {ticker}")
+        return pd.DataFrame()
 
-        price_history = respose_json['body']
-        data_dict = []
+    price_history = respose_json['body']
+    data_dict = []
 
-        print(f"earliest_datetime: {earliest_datetime}")
-        for stock_price in price_history.values():
+    for stock_price in price_history.values():
+        date_time_num = stock_price["date_utc"]
+        utc_datetime = datetime.fromtimestamp(date_time_num, tz=pytz.utc)
+        est_datetime = utc_datetime.astimezone(tz=EST)
 
-            date_time_num = stock_price["date_utc"]
-            utc_datetime = datetime.fromtimestamp(date_time_num, tz=pytz.utc)
-            est_datetime = utc_datetime.astimezone(tz=EST)
+        if est_datetime < earliest_datetime:
+            continue
 
-            if est_datetime < earliest_datetime:
-                continue
+        price = stock_price["open"]
+        data_dict.append([est_datetime.strftime(date_format), price])
 
-            price = stock_price["open"]
-            data_dict.append([est_datetime.strftime(date_format), price])
+    columns = ['Date Time', 'Price']
+    df = pd.DataFrame(data_dict, columns=columns)
+    df['Date Time'] = pd.to_datetime(df['Date Time'], format=date_format)
+    df.sort_values(by='Date Time', ascending=True, inplace=True)
+    df.reset_index(drop=True, inplace=True)
 
-        # Set column names
-        columns = ['Date Time', 'Price']
-        df = pd.DataFrame(data_dict, columns=columns)
-        df['Date Time'] = pd.to_datetime(df['Date Time'], format=date_format)
-        df.sort_values(by='Date Time', ascending=True)
-        df.reset_index(inplace=True)
-        df.drop('index', axis=1, inplace=True)
+    return df
 
-        return df
