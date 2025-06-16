@@ -48,7 +48,8 @@ if st.button("Analyze") and ticker:
         if news_df.empty or 'title' not in news_df.columns:
             st.error("❌ No news found or invalid data for this ticker. Try a popular one like AAPL or TSLA.")
             st.stop()
-
+            
+        sentimentAlgo.symbol = ticker 
         scored_news_df = score_news(news_df)
         scored_news_df = convert_headline_to_link(scored_news_df)
 
