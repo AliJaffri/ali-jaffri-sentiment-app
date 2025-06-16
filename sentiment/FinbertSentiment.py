@@ -6,7 +6,7 @@ import pandas as pd
 class FinbertSentiment(SentimentAnalysisBase):
 
     def __init__(self):
-        # Ensure compatibility with Streamlit Cloud (CPU-only)
+        # Use CPU on Streamlit Cloud or fallback if no GPU
         device = 0 if torch.cuda.is_available() else -1
 
         self._sentiment_analysis = pipeline(
@@ -18,17 +18,17 @@ class FinbertSentiment(SentimentAnalysisBase):
 
     def calc_sentiment_score(self):
         def extract_probs(result):
-            # Convert [{'label': 'neutral', 'score': 0.8}] to separate values
+            # Convert list of dicts into three probability scores
             scores = {'positive': 0.0, 'negative': 0.0, 'neutral': 0.0}
             for r in result:
                 scores[r['label']] = r['score']
             return pd.Series([scores['positive'], scores['neutral'], scores['negative']])
 
-        # Run FinBERT on titles
+        # Run FinBERT sentiment on all news titles
         self.df['sentiment'] = self.df['title'].apply(self._sentiment_analysis)
 
-        # Extract detailed probabilities
-        self.df[['score_positive', 'score_neutral', 'score_negative']] = self.df['sentiment'].apply(extract_probs)
+        # Extract sentiment scores into new columns
+        self.df[['positive', 'neutral', 'negative']] = self.df['sentiment'].apply(extract_probs)
 
-        # Compute overall net sentiment score (positive - negative)
-        self.df['sentiment_score'] = self.df['score_positive'] - self.df['score_negative']
+        # Compute net sentiment score: positive - negative
+        self.df['sentiment_score'] = self.df['positive'] - self.df['negative']
