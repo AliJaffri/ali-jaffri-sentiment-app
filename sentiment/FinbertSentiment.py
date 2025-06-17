@@ -1,5 +1,5 @@
 from transformers import pipeline
-from .SentimentAnalysisBase import SentimentAnalysisBase
+from sentiment.SentimentAnalysisBase import SentimentAnalysisBase
 import torch
 import pandas as pd
 
