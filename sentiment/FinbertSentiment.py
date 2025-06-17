@@ -16,29 +16,30 @@ class FinbertSentiment(SentimentAnalysisBase):
         )
         super().__init__()
 
-    def calc_sentiment_score(self):
+       def calc_sentiment_score(self):
         def extract_probs(result):
-            # Convert a list of dicts into separate probability scores
             scores = {'positive': 0.0, 'negative': 0.0, 'neutral': 0.0}
             for r in result:
                 scores[r['label']] = r['score']
             return pd.Series([scores['positive'], scores['neutral'], scores['negative']])
 
-        # Ensure all titles are strings and collect them
         titles = self.df['title'].astype(str).tolist()
+        batch_size = 8  # Safe for most environments
 
-        # Run FinBERT in batch mode
-        results = self._sentiment_analysis(titles, truncation=True)
+        all_results = []
+        for i in range(0, len(titles), batch_size):
+            batch = titles[i:i + batch_size]
+            try:
+                batch_results = self._sentiment_analysis(batch, truncation=True)
+                all_results.extend(batch_results)
+            except Exception as e:
+                print(f"Error in batch {i}-{i + batch_size}: {e}")
+                all_results.extend([{'label': 'neutral', 'score': 1.0}] * len(batch))  # fallback
 
-        # Save raw result
-        self.df['sentiment'] = results
-
-        # Extract scores into new DataFrame
-        sentiment_scores = pd.DataFrame([extract_probs([res]) for res in results],
-                                        columns=['positive', 'neutral', 'negative'])
-
-        # Join extracted scores to original DataFrame
+        self.df['sentiment'] = all_results
+        sentiment_scores = pd.DataFrame(
+            [extract_probs([res]) for res in all_results],
+            columns=['positive', 'neutral', 'negative']
+        )
         self.df = pd.concat([self.df, sentiment_scores], axis=1)
-
-        # Compute overall sentiment score
         self.df['sentiment_score'] = self.df['positive'] - self.df['negative']
