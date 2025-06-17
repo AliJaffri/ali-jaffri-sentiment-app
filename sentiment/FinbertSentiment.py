@@ -1,36 +1,55 @@
-import os
-os.environ["PYTORCH_SDP_DISABLE_FLASH_ATTN"] = "1"
-
-from transformers import pipeline
-from .SentimentAnalysisBase import SentimentAnalysisBase
-import torch
 import pandas as pd
+from transformers import pipeline
+from sentiment.SentimentAnalysisBase import SentimentAnalysisBase
+
 
 class FinbertSentiment(SentimentAnalysisBase):
-
     def __init__(self):
-        device = 0 if torch.cuda.is_available() else -1
-        self._sentiment_analysis = pipeline(
-            "sentiment-analysis",
-            model="ProsusAI/finbert",
-            device=device
-        )
         super().__init__()
+        # ✅ Load FinBERT with CPU only
+        self._sentiment_analysis = pipeline(
+            "sentiment-analysis", model="ProsusAI/finbert", device=-1
+        )
 
     def calc_sentiment_score(self):
-        def extract_probs(result):
-            scores = {'positive': 0.0, 'negative': 0.0, 'neutral': 0.0}
-            for r in result:
-                scores[r['label']] = r['score']
-            return pd.Series([scores['positive'], scores['neutral'], scores['negative']])
+        titles = self.df['title'].astype(str).tolist()
 
-        titles = self.df['title'].tolist()
+        # Perform sentiment analysis
         results = self._sentiment_analysis(titles, truncation=True)
-        sentiment_df = pd.DataFrame(results)
-        self.df['sentiment'] = results
-        self.df[['positive', 'neutral', 'negative']] = self.df['sentiment'].apply(lambda r: pd.Series({
-            'positive': r[0]['score'] if r[0]['label'] == 'positive' else 0.0,
-            'neutral': r[0]['score'] if r[0]['label'] == 'neutral' else 0.0,
-            'negative': r[0]['score'] if r[0]['label'] == 'negative' else 0.0,
-        }))
-        self.df['sentiment_score'] = self.df['positive'] - self.df['negative']
+
+        sentiment_scores = []
+        sentiments = []
+
+        for result in results:
+            label = result['label']
+            score = result['score']
+
+            if label == 'positive':
+                sentiment_scores.append(score)
+                sentiments.append('positive')
+            elif label == 'negative':
+                sentiment_scores.append(-score)
+                sentiments.append('negative')
+            else:
+                sentiment_scores.append(0)
+                sentiments.append('neutral')
+
+        self.df['sentiment_score'] = sentiment_scores
+        self.df['sentiment'] = sentiments
+
+    def plot_sentiment(self):
+        import plotly.express as px
+
+        df_plot = self.df[self.df['sentiment_score'] != 0]
+
+        fig = px.bar(
+            df_plot,
+            x='Date Time',
+            y='sentiment_score',
+            color='sentiment',
+            title=f'{self.symbol} Hourly Sentiment Scores',
+            labels={'sentiment_score': 'Sentiment Score'},
+        )
+
+        fig.update_layout(xaxis_title='Date', yaxis_title='Score', title_x=0.5)
+        return fig
