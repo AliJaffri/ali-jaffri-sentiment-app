@@ -1,21 +1,39 @@
+import os
+os.environ["PYTORCH_ENABLE_SDPA"] = "0"  # Critical for disabling SDPA bugs
+
+import torch
 import pandas as pd
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import TextClassificationPipeline
 from sentiment.SentimentAnalysisBase import SentimentAnalysisBase
 
 
 class FinbertSentiment(SentimentAnalysisBase):
     def __init__(self):
         super().__init__()
-        # ✅ Load FinBERT with CPU only
-        self._sentiment_analysis = pipeline(
-            "sentiment-analysis", model="ProsusAI/finbert", device=-1
+
+        model_name = "ProsusAI/finbert"
+
+        # Explicitly load tokenizer and model (disable meta tensor loading)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForSequenceClassification.from_pretrained(model_name)
+
+        # Force model to CPU
+        self.model.to(torch.device("cpu"))
+
+        # Use custom pipeline to ensure clean execution
+        self._sentiment_analysis = TextClassificationPipeline(
+            model=self.model,
+            tokenizer=self.tokenizer,
+            device=-1,
+            return_all_scores=False,
+            truncation=True
         )
 
     def calc_sentiment_score(self):
         titles = self.df['title'].astype(str).tolist()
 
-        # Perform sentiment analysis
-        results = self._sentiment_analysis(titles, truncation=True)
+        results = self._sentiment_analysis(titles)
 
         sentiment_scores = []
         sentiments = []
@@ -50,6 +68,5 @@ class FinbertSentiment(SentimentAnalysisBase):
             title=f'{self.symbol} Hourly Sentiment Scores',
             labels={'sentiment_score': 'Sentiment Score'},
         )
-
         fig.update_layout(xaxis_title='Date', yaxis_title='Score', title_x=0.5)
         return fig
