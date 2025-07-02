@@ -13,3 +13,4 @@ torch
 transformers
 streamlit
 feedparser
+pytz
